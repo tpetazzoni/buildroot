@@ -110,7 +110,7 @@ define DOWNLOAD
 	$(Q)mkdir -p $($(2)_DL_DIR)
 	$(Q)$(EXTRA_ENV) $($(2)_DL_ENV) \
 		flock $($(2)_DL_DIR)/.lock $(DL_WRAPPER) \
-		-c '$($(2)_DL_VERSION)' \
+		-c '$($(2)_DL_VERSION_FINAL)' \
 		-d '$($(2)_DL_DIR)' \
 		-D '$(DL_DIR)' \
 		-f '$(notdir $(1))' \

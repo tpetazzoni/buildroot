@@ -150,7 +150,7 @@ define _json-info-pkg
 endef
 
 define _json-info-pkg-details
-	"version": $(call mk-json-str,$($(1)_DL_VERSION)),
+	"version": $(call mk-json-str,$($(1)_DL_VERSION_FINAL)),
 	"licenses": $(call mk-json-str,$($(1)_LICENSE)),
 	"dl_dir": $(call mk-json-str,$($(1)_DL_SUBDIR)),
 	"downloads": [

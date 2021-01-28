@@ -500,23 +500,39 @@ $(2)_NAME			=  $(1)
 $(2)_RAWNAME			=  $$(patsubst host-%,%,$(1))
 $(2)_PKGDIR			=  $(pkgdir)
 
-# Keep the package version that may contain forward slashes in the _DL_VERSION
-# variable, then replace all forward slashes ('/') by underscores ('_') to
-# sanitize the package version that is used in paths, directory and file names.
-# Forward slashes may appear in the package's version when pointing to a
-# version control system branch or tag, for example remotes/origin/1_10_stable.
-# Similar for spaces and colons (:) that may appear in date-based revisions for
-# CVS.
 ifndef $(2)_VERSION
+ $(2)_RAW_VERSION := $$($(3)_VERSION)
+else
+ $(2)_RAW_VERSION := $$($(2)_VERSION)
+endif
+
+# Inherit the host variable from the target variable, if needed
+ifndef $(2)_VERSION
+ $(2)_VERSION := $$($(3)_VERSION)
+endif
+
+# Keep the package version that may contain forward slashes in the
+# _DL_VERSION variable. We allow _DL_VERSION to be overridden by the
+# package, in case it needs to be different from _VERSION
+ifndef $(2)_DL_VERSION
  ifdef $(3)_DL_VERSION
-  $(2)_DL_VERSION := $$($(3)_DL_VERSION)
- else ifdef $(3)_VERSION
-  $(2)_DL_VERSION := $$($(3)_VERSION)
+  $(2)_DL_VERSION_FINAL := $$($(3)_DL_VERSION)
+ else
+  $(2)_DL_VERSION_FINAL := $$($(2)_RAW_VERSION)
  endif
 else
- $(2)_DL_VERSION := $$(strip $$($(2)_VERSION))
+ # expand now so that if <pkg>_VERSION is used in <pkg>_DL_VERSION,
+ # the original value of <pkg>_VERSION is used
+ $(2)_DL_VERSION_FINAL := $$($(2)_DL_VERSION)
 endif
-$(2)_VERSION := $$(call sanitize,$$($(2)_DL_VERSION))
+
+# Sanitize the version field by replacing all forward slashes ('/') by
+# underscores ('_') so that its value can be used in paths, directory
+# and files. Forward slashes may appear in the package's version when
+# pointing to a version control system branch or tag, for example
+# remotes/origin/1_10_stable.  Similar for spaces and colons (:) that
+# may appear in date-based revisions for CVS.
+$(2)_VERSION := $$(call sanitize,$$($(2)_VERSION))
 
 $(2)_HASH_FILE = \
 	$$(strip \
