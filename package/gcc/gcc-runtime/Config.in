@@ -1,0 +1,3 @@
+config BR2_PACKAGE_GCC_RUNTIME
+	bool
+	default y if BR2_TOOLCHAIN_BUILDROOT
