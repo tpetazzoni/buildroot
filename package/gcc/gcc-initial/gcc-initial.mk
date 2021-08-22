@@ -7,6 +7,8 @@
 GCC_INITIAL_VERSION = $(GCC_VERSION)
 GCC_INITIAL_SITE = $(GCC_SITE)
 GCC_INITIAL_SOURCE = $(GCC_SOURCE)
+GCC_INITIAL_LICENSE = GPL-2.0, GPL-3.0, LGPL-2.1, LGPL-3.0
+GCC_INITIAL_LICENSE_FILES = COPYING COPYING3 COPYING.LIB COPYING3.LIB
 
 # We do not have a 'gcc' package per-se; we only have two incarnations,
 # gcc-initial and gcc-final. gcc-initial is just am internal step that
