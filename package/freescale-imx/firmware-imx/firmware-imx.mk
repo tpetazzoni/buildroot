@@ -43,11 +43,33 @@ endef
 FIRMWARE_IMX_DDR_VERSION = $(call qstrip,$(BR2_PACKAGE_FIRMWARE_IMX_DDR_VERSION))
 ifneq ($(FIRMWARE_IMX_DDR_VERSION),)
 FIRMWARE_IMX_DDR_VERSION_SUFFIX = _$(FIRMWARE_IMX_DDR_VERSION)
+ifeq ($(BR2_PACKAGE_FREESCALE_IMX_PLATFORM_IMX91)$(BR2_PACKAGE_FREESCALE_IMX_PLATFORM_IMX93),y)
+FIRMWARE_IMX_DDR_VERSION_SUFFIX = _v$(FIRMWARE_IMX_DDR_VERSION)
+endif
 endif
 
 ifeq ($(BR2_PACKAGE_FIRMWARE_IMX_LPDDR4),y)
 FIRMWARE_IMX_DDRFW_DIR = $(@D)/firmware/ddr/synopsys
 
+ifeq ($(BR2_PACKAGE_FREESCALE_IMX_PLATFORM_IMX91)$(BR2_PACKAGE_FREESCALE_IMX_PLATFORM_IMX93),y)
+define FIRMWARE_IMX_INSTALL_IMAGE_DDR_FW
+	# Create padded versions of lpddr4_pmu_* and generate lpddr4_pmu_train_fw.bin.
+	# lpddr4_pmu_train_fw.bin is needed when generating imx9-boot-sd.bin
+	# which is done in post-image script.
+	$(call FIRMWARE_IMX_PREPARE_DDR_FW, \
+		lpddr4_imem_1d$(FIRMWARE_IMX_DDR_VERSION_SUFFIX),
+		lpddr4_dmem_1d$(FIRMWARE_IMX_DDR_VERSION_SUFFIX),
+		lpddr4_pmu_train_1d_fw)
+	$(call FIRMWARE_IMX_PREPARE_DDR_FW, \
+		lpddr4_imem_2d$(FIRMWARE_IMX_DDR_VERSION_SUFFIX),
+		lpddr4_dmem_2d$(FIRMWARE_IMX_DDR_VERSION_SUFFIX),
+		lpddr4_pmu_train_2d_fw)
+	cat $(FIRMWARE_IMX_DDRFW_DIR)/lpddr4_pmu_train_1d_fw.bin \
+		$(FIRMWARE_IMX_DDRFW_DIR)/lpddr4_pmu_train_2d_fw.bin > \
+		$(BINARIES_DIR)/lpddr4_pmu_train_fw.bin
+	ln -sf $(BINARIES_DIR)/lpddr4_pmu_train_fw.bin $(BINARIES_DIR)/ddr_fw.bin
+endef
+else
 define FIRMWARE_IMX_INSTALL_IMAGE_DDR_FW
 	# Create padded versions of lpddr4_pmu_* and generate lpddr4_pmu_train_fw.bin.
 	# lpddr4_pmu_train_fw.bin is needed when generating imx8-boot-sd.bin
@@ -70,6 +92,7 @@ define FIRMWARE_IMX_INSTALL_IMAGE_DDR_FW
 	# the binary dir.
 	cp $(FIRMWARE_IMX_DDRFW_DIR)/lpddr4*.bin $(BINARIES_DIR)/
 endef
+endif
 endif
 
 ifeq ($(BR2_PACKAGE_FIRMWARE_IMX_DDR4),y)
