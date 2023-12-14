@@ -1,0 +1,37 @@
+From c4033ab2e8fbb943994876b6324cefc499c9e2df Mon Sep 17 00:00:00 2001
+From: Neal Frager <neal.frager@amd.com>
+Date: Thu, 14 Dec 2023 06:34:28 +0000
+Subject: [PATCH 1/1] configure: correct tooldir install path
+
+This patch is required to fix how the newlib headers are installed.
+
+The cross compiler expects headers to be in
+.../host/usr/arm-none-eabi/sysroot/usr/include/newlib.h
+by default newlib installed the headers into
+.../host/usr/arm-none-eabi/sysroot/arm-none-eabi/include/newlib.h
+
+${exec_prefix} provides the .../host/usr/arm-none-eabi/sysroot path
+${target_noncanonical} provides an extra arm-none-eabi/ that must be removed.
+
+Signed-off-by: Chris Wardman <cjwfirmware@vxmdesign.com>
+Signed-off-by: Neal Frager <neal.frager@amd.com>
+---
+ configure | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/configure b/configure
+index eb0ba840b..118472c02 100755
+--- a/configure
++++ b/configure
+@@ -7057,7 +7057,7 @@ esac
+ 
+ # Some systems (e.g., one of the i386-aix systems the gas testers are
+ # using) don't handle "\$" correctly, so don't use it here.
+-tooldir='${exec_prefix}'/${target_noncanonical}
++tooldir='${exec_prefix}'/usr
+ build_tooldir=${tooldir}
+ 
+ # Create a .gdbinit file which runs the one in srcdir
+-- 
+2.25.1
+
