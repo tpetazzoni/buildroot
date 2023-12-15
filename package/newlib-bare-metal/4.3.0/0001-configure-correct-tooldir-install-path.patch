@@ -1,0 +1,58 @@
+From ba50ea2804e9f02f732f562040981343f4f4177a Mon Sep 17 00:00:00 2001
+From: Neal Frager <neal.frager@amd.com>
+Date: Fri, 15 Dec 2023 09:05:09 +0000
+Subject: [PATCH 1/1] configure: correct tooldir install path
+
+This patch is required to fix how the newlib headers are installed
+when using a sysroot install directory.
+
+The cross compiler expects headers to be in
+.../host/usr/arm-none-eabi/sysroot/usr/include/newlib.h
+by default newlib installed the headers into
+.../host/usr/arm-none-eabi/sysroot/usr/arm-none-eabi/include/newlib.h
+
+${exec_prefix} provides the .../host/usr/arm-none-eabi/sysroot path
+${target_noncanonical} provides an extra arm-none-eabi/ that must be removed.
+
+Signed-off-by: Neal Frager <neal.frager@amd.com>
+Co-developed-by: Chris Wardman <cjwfirmware@vxmdesign.com>
+---
+ configure | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/configure b/configure
+index eb0ba840b..29ab40cf6 100755
+--- a/configure
++++ b/configure
+@@ -821,6 +821,7 @@ enable_linker_plugin_flags
+ enable_stage1_languages
+ enable_objc_gc
+ with_build_sysroot
++with_install_sysroot
+ with_debug_prefix_map
+ with_build_config
+ enable_vtable_verify
+@@ -1590,6 +1591,7 @@ Optional Packages:
+   --with-isl-lib=PATH     Specify the directory for the installed isl library
+   --with-build-sysroot=SYSROOT
+                           use sysroot as the system root during the build
++  --with-install-sysroot  use sysroot install directory
+   --with-debug-prefix-map='A=B C=D ...'
+                           map A to B, C to D ... in debug information
+   --with-build-config='NAME NAME2...'
+@@ -7057,7 +7059,12 @@ esac
+ 
+ # Some systems (e.g., one of the i386-aix systems the gas testers are
+ # using) don't handle "\$" correctly, so don't use it here.
++# Check whether --with-install-sysroot was given.
++if test "${with_install_sysroot+set}" = set; then :
++tooldir='${exec_prefix}'
++else
+ tooldir='${exec_prefix}'/${target_noncanonical}
++fi
+ build_tooldir=${tooldir}
+ 
+ # Create a .gdbinit file which runs the one in srcdir
+-- 
+2.25.1
+
