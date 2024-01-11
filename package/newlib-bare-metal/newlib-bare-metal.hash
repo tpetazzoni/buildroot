@@ -1,5 +1,5 @@
 # Locally calculated
-sha256  83a62a99af59e38eb9b0c58ed092ee24d700fff43a22c03e433955113ef35150  newlib-4.3.0.20230120.tar.gz
+sha256  0c166a39e1bf0951dfafcd68949fe0e4b6d3658081d6282f39aeefc6310f2f13  newlib-4.4.0.20231231.tar.gz
 
 # Hashes for license files locally calculated
 sha256  231f7edcc7352d7734a96eef0b8030f77982678c516876fcb81e25b32d68564c  COPYING

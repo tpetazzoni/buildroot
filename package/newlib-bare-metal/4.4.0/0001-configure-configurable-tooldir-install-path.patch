@@ -1,0 +1,74 @@
+From 0b156db50d95a767b60eb1dfec33d6e356bf75e4 Mon Sep 17 00:00:00 2001
+From: Neal Frager <neal.frager@amd.com>
+Date: Thu, 11 Jan 2024 11:30:31 +0000
+Subject: [PATCH] configure: configurable tooldir install path
+
+This patch is required to fix how the newlib headers are installed
+when using a sysroot install directory.
+
+The cross compiler expects headers to be in
+.../host/usr/arm-none-eabi/sysroot/usr/include/newlib.h
+by default newlib installed the headers into
+.../host/usr/arm-none-eabi/sysroot/usr/arm-none-eabi/include/newlib.h
+
+${exec_prefix} provides the .../host/usr/arm-none-eabi/sysroot path
+${target_noncanonical} provides an extra arm-none-eabi/ that must be removed.
+
+With this patch, users can specify the tooldir path that is needed.
+
+Since buildroot uses autoconf 2.71, this patch directly updates the
+output configure file, so that autoconf does not need to run.
+
+Signed-off-by: Neal Frager <neal.frager@amd.com>
+Co-developed-by: Chris Wardman <cjwfirmware@vxmdesign.com>
+---
+ configure | 19 ++++++++++++++++++-
+ 1 file changed, 18 insertions(+), 1 deletions(-)
+
+diff --git a/configure b/configure
+index eb0ba840b..6dfdfa7b8 100755
+--- a/configure
++++ b/configure
+@@ -822,6 +823,7 @@ enable_stage1_languages
+ enable_objc_gc
+ with_build_sysroot
+ with_debug_prefix_map
++with_tooldir
+ with_build_config
+ enable_vtable_verify
+ enable_serial_configure
+@@ -1592,6 +1605,7 @@ Optional Packages:
+                           use sysroot as the system root during the build
+   --with-debug-prefix-map='A=B C=D ...'
+                           map A to B, C to D ... in debug information
++  --with-tooldir=PATH     use given path to install target tools after build
+   --with-build-config='NAME NAME2...'
+                           use config/NAME.mk build configuration
+   --with-build-time-tools=PATH
+@@ -7057,7 +7071,22 @@ esac
+ 
+ # Some systems (e.g., one of the i386-aix systems the gas testers are
+ # using) don't handle "\$" correctly, so don't use it here.
+-tooldir='${exec_prefix}'/${target_noncanonical}
++
++# Check whether --with-tooldir was given.
++if test "${with_tooldir+set}" = set; then :
++  withval=$with_tooldir; case x"$withval" in
++	x/*) ;;
++	*)
++	with_tooldir=
++	{ $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: argument to --with-tooldir must be an absolute path" >&5
++$as_echo "$as_me: WARNING: argument to --with-tooldir must be an absolute path" >&2;}
++	;;
++  esac
++else
++  with_tooldir='${exec_prefix}'/${target_noncanonical}
++fi
++
++tooldir=${with_tooldir}
+ build_tooldir=${tooldir}
+ 
+ # Create a .gdbinit file which runs the one in srcdir
+-- 
+2.25.1
+
