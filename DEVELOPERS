@@ -2251,6 +2251,9 @@ F:	package/gtkiostream/
 N:	Matt Silva <dev@matt-silva.com>
 F:	package/rlwrap/
 
+N:	Matt Staveley-Taylor <matt.stav.taylor@gmail.com>
+F:	package/bcachefs-tools/
+
 N:	Mauro Condarelli <mc5686@mclink.it>
 F:	package/mc/
 F:	package/python-autobahn/
