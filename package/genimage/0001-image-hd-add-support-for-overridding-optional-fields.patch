@@ -1,0 +1,242 @@
+From 79770cb8f6fc76bc672c21ef83755ebea7c56279 Mon Sep 17 00:00:00 2001
+From: Thomas Petazzoni <thomas.petazzoni@bootlin.com>
+Date: Sun, 14 Jul 2024 09:31:22 +0200
+Subject: [PATCH] image-hd: add support for overridding optional fields of the
+ MBR
+
+The 'holes' property allows to describe holes in an image, for example
+to allow writing an image that spans accross the MBR partition
+table. The image-hd code creates a fake partition spanning from 440
+bytes to 512 bytes to protect the area used by the partition table.
+
+However, it turns out that the Amlogic SoCs have a bootloader that is
+precisely written accross the partition table, with some bits before
+the partition table and some bits after. But those Amlogic SoCs use
+the first 444 bytes, instead of just the first 440 bytes (see [1]).
+
+This is possible because the first 2 fields of the MBR are optional
+fields (see [2]). The first optional field is the disk signature (4
+bytes), the second optional field is the "copy protect" field (2
+bytes).
+
+Therefore, to write a bootloader image for the Amlogic SoCs, we need
+to write something like:
+
+image fip/u-boot.bin.sd.bin {
+        file {
+                holes = {"(444; 512)"}
+        }
+}
+
+But that isn't accepted because it overlaps with the fake MBR
+partition that starts at offset 440.
+
+In order to allow this, the present commit adds a new
+'mbr-skip-optionals' property, which tells genimage that we would like
+to skip writing those optional fields, allowing the full 446 bytes to
+be used, as is needed for Amlogic SoC bootloader images.
+
+Implementation note: we would have preferred to write:
+
+	mbr_data += sizeof(struct mbr_tail_optionals);
+
+but genimage has chosen to not allow arithmetic on void* pointers, so
+instead we have chosen to use:
+
+	mbr_data = &mbr.part_entry[0];
+
+when adjusting the start of the MBR data that have to be inserted
+into the image.
+
+This commit also adds two test cases for this new feature:
+
+- One positive test case, where we verify that we can write an image
+  where the hole is (444, 512) and the mbr-skip-optionals = "true"
+  option is passed
+
+- One negative test case, where we verify that we are not allowed to
+  write an image where the hole is (444, 512) when mbr-skip-optionals
+  = "false".
+
+[1] http://docs.khadas.com/products/sbc/vim3/development/create-bootable-tf-card
+[2] https://wiki.osdev.org/MBR_(x86)
+
+Upstream: https://github.com/pengutronix/genimage/pull/260
+Co-Developed-by: Romain Naour <romain.naour@smile.fr>
+Signed-off-by: Thomas Petazzoni <thomas.petazzoni@bootlin.com>
+---
+ README.rst                      |  3 +++
+ image-hd.c                      | 41 +++++++++++++++++++++++++++++----
+ test/hdimage.test               | 14 +++++++++++
+ test/hole-skip-optionals.config | 17 ++++++++++++++
+ 4 files changed, 70 insertions(+), 5 deletions(-)
+ create mode 100644 test/hole-skip-optionals.config
+
+diff --git a/README.rst b/README.rst
+index d908ff5..3a86657 100644
+--- a/README.rst
++++ b/README.rst
+@@ -419,6 +419,9 @@ Options:
+ 			up to the end of the last partition. This might make the file
+ 			bigger. This is necessary if the image will be processed by
+ 			such tools as libvirt, libguestfs or parted.
++:mbr-skip-optionals:	Boolean. If true, then the 6 bytes of optional fields in the MBR
++			are skipped, allowing an image occupying the first 446 bytes
++			instead of just the first 440 bytes to be written.
+ 
+ iso
+ ***
+diff --git a/image-hd.c b/image-hd.c
+index 4ea55b6..da54d89 100644
+--- a/image-hd.c
++++ b/image-hd.c
+@@ -45,6 +45,7 @@ struct hdimage {
+ 	unsigned long long gpt_location;
+ 	cfg_bool_t gpt_no_backup;
+ 	cfg_bool_t fill;
++	cfg_bool_t mbr_skip_optionals;
+ 	unsigned long long file_size;
+ };
+ 
+@@ -62,9 +63,14 @@ struct mbr_partition_entry {
+ } __attribute__((packed));
+ ct_assert(sizeof(struct mbr_partition_entry) == 16);
+ 
+-struct mbr_tail {
++struct mbr_tail_optionals {
+ 	uint32_t disk_signature;
+ 	uint16_t copy_protect;
++} __attribute__((packed));
++ct_assert(sizeof(struct mbr_tail_optionals) == 6);
++
++struct mbr_tail {
++	struct mbr_tail_optionals optionals;
+ 	struct mbr_partition_entry part_entry[4];
+ 	uint16_t boot_signature;
+ } __attribute__((packed));
+@@ -137,6 +143,9 @@ static int hdimage_insert_mbr(struct image *image, struct list_head *partitions)
+ 	struct hdimage *hd = image->handler_priv;
+ 	struct mbr_tail mbr;
+ 	struct partition *part;
++	unsigned long long mbr_offset;
++	const void *mbr_data;
++	size_t mbr_size;
+ 	int ret, i = 0;
+ 
+ 	if (hd->table_type == TYPE_HYBRID) {
+@@ -146,7 +155,7 @@ static int hdimage_insert_mbr(struct image *image, struct list_head *partitions)
+ 	}
+ 
+ 	memset(&mbr, 0, sizeof(mbr));
+-	memcpy(&mbr.disk_signature, &hd->disksig, sizeof(hd->disksig));
++	memcpy(&mbr.optionals.disk_signature, &hd->disksig, sizeof(hd->disksig));
+ 
+ 	list_for_each_entry(part, partitions, list) {
+ 		struct mbr_partition_entry *entry;
+@@ -196,7 +205,16 @@ static int hdimage_insert_mbr(struct image *image, struct list_head *partitions)
+ 
+ 	mbr.boot_signature = htole16(0xaa55);
+ 
+-	ret = insert_data(image, &mbr, imageoutfile(image), sizeof(mbr), 440);
++	mbr_offset = 440;
++	mbr_size = sizeof(mbr);
++	mbr_data = &mbr;
++	if (hd->mbr_skip_optionals) {
++		mbr_offset += sizeof(struct mbr_tail_optionals);
++		mbr_size -= sizeof(struct mbr_tail_optionals);
++		mbr_data = &mbr.part_entry[0];
++	}
++
++	ret = insert_data(image, mbr_data, imageoutfile(image), mbr_size, mbr_offset);
+ 	if (ret) {
+ 		if (hd->table_type == TYPE_HYBRID) {
+ 			image_error(image, "failed to write hybrid MBR\n");
+@@ -769,6 +787,7 @@ static int hdimage_setup(struct image *image, cfg_t *cfg)
+ 	hd->gpt_no_backup = cfg_getbool(cfg, "gpt-no-backup");
+ 	hd->fill = cfg_getbool(cfg, "fill");
+ 	hd->disk_uuid = cfg_getstr(cfg, "disk-uuid");
++	hd->mbr_skip_optionals = cfg_getbool(cfg, "mbr-skip-optionals");
+ 
+ 	if (is_block_device(imageoutfile(image))) {
+ 		int ret;
+@@ -874,8 +893,19 @@ static int hdimage_setup(struct image *image, cfg_t *cfg)
+ 	}
+ 
+ 	if (hd->table_type != TYPE_NONE) {
+-		struct partition *mbr = fake_partition("[MBR]", 512 - sizeof(struct mbr_tail),
+-						       sizeof(struct mbr_tail));
++		struct partition *mbr;
++		unsigned long long mbr_offset;
++		unsigned long long mbr_size;
++
++		mbr_offset = 512 - sizeof(struct mbr_tail);
++		mbr_size = sizeof(struct mbr_tail);
++
++		if (hd->mbr_skip_optionals) {
++			mbr_offset += sizeof(struct mbr_tail_optionals);
++			mbr_size -= sizeof(struct mbr_tail_optionals);
++		}
++
++		mbr = fake_partition("[MBR]", mbr_offset, mbr_size);
+ 
+ 		list_add_tail(&mbr->list, &image->partitions);
+ 		now = partition_end(mbr);
+@@ -1093,6 +1123,7 @@ static cfg_opt_t hdimage_opts[] = {
+ 	CFG_STR("gpt-location", NULL, CFGF_NONE),
+ 	CFG_BOOL("gpt-no-backup", cfg_false, CFGF_NONE),
+ 	CFG_BOOL("fill", cfg_false, CFGF_NONE),
++	CFG_BOOL("mbr-skip-optionals", cfg_false, CFGF_NONE),
+ 	CFG_END()
+ };
+ 
+diff --git a/test/hdimage.test b/test/hdimage.test
+index c284613..bcaaa72 100755
+--- a/test/hdimage.test
++++ b/test/hdimage.test
+@@ -154,6 +154,20 @@ test_expect_success "bootloader-hole5" "
+ 	setup_gpt_files &&
+ 	OFFSET=128K run_genimage hole.config"
+ 
++# Test the mbr-skip-optionals
++test_expect_success "bootloader-hole6" "
++	rm -rf input &&
++	mkdir input &&
++	truncate -s 100K input/bootloader.img &&
++	MBR_SKIP_OPTIONALS=true run_genimage hole-skip-optionals.config"
++
++# Test the mbr-skip-optionals
++test_expect_success "bootloader-hole7" "
++	rm -rf input &&
++	mkdir input &&
++	truncate -s 100K input/bootloader.img &&
++	MBR_SKIP_OPTIONALS=false test_must_fail run_genimage hole-skip-optionals.config"
++
+ test_expect_success "hdimage no-partition" "
+ 	dd if=/dev/zero bs=1 count=100 | tr '\000' '\377' > input/block1.img &&
+ 	dd if=/dev/zero bs=1 count=50  | tr '\000' '\252' > input/block2.img &&
+diff --git a/test/hole-skip-optionals.config b/test/hole-skip-optionals.config
+new file mode 100644
+index 0000000..903c0be
+--- /dev/null
++++ b/test/hole-skip-optionals.config
+@@ -0,0 +1,17 @@
++image test.hole {
++	hdimage {
++		mbr-skip-optionals = "${MBR_SKIP_OPTIONALS}"
++	}
++
++	partition bootloader {
++		in-partition-table = false
++		offset = 0
++		image = "bootloader.img"
++	}
++}
++
++image bootloader.img {
++	file {
++		holes = "(444; 512)"
++	}
++}
+-- 
+2.45.2
+
