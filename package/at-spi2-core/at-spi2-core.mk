@@ -11,9 +11,14 @@ AT_SPI2_CORE_SITE = https://download.gnome.org/sources/at-spi2-core/$(AT_SPI2_CO
 AT_SPI2_CORE_LICENSE = LGPL-2.1+
 AT_SPI2_CORE_LICENSE_FILES = COPYING
 AT_SPI2_CORE_INSTALL_STAGING = YES
-AT_SPI2_CORE_DEPENDENCIES = host-pkgconf dbus libglib2 libxml2 \
+AT_SPI2_CORE_DEPENDENCIES = host-pkgconf libglib2 libxml2 \
 	$(TARGET_NLS_DEPENDENCIES)
-AT_SPI2_CORE_CONF_OPTS = -Ddbus_daemon=/usr/bin/dbus-daemon
+
+ifeq ($(BR2_PACKAGE_AT_SPI2_CORE_FULL),y)
+AT_SPI2_CORE_DEPENDENCIES += dbus
+AT_SPI2_CORE_CONF_OPTS += \
+	-Datk_only=false \
+	-Ddbus_daemon=/usr/bin/dbus-daemon
 
 ifeq ($(BR2_PACKAGE_XORG7),y)
 AT_SPI2_CORE_CONF_OPTS += -Dx11=enabled
@@ -34,6 +39,9 @@ AT_SPI2_CORE_CONF_OPTS += -Duse_systemd=true
 AT_SPI2_CORE_DEPENDENCIES += systemd
 else
 AT_SPI2_CORE_CONF_OPTS += -Duse_systemd=false
+endif
+else # BR2_PACKAGE_AT_SPI2_CORE_FULL
+AT_SPI2_CORE_CONF_OPTS += -Datk_only=true
 endif
 
 AT_SPI2_CORE_LDFLAGS = $(TARGET_LDFLAGS) $(TARGET_NLS_LIBS)
